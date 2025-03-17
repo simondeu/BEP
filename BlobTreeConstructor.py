@@ -1,8 +1,9 @@
 class Node():
     
-    def __init__(self, name, neighbours):
+    def __init__(self, name, neighbours, type):
         self.name = name
         self.neighbours = neighbours
+        self.type = ""
         
     def __str__(self):
         return self.name
@@ -17,6 +18,7 @@ class Edge():
         self.v = v
         self.name = u.name + v.name
         self.type = ""
+        self.direction = None
 
 def GetAB(u,v,A):
     A.append(u)
@@ -37,6 +39,13 @@ def CheckABx(A,B,Leaf):
 def StrongEdgeStem(Edge):
     Edge.type = "StrongEdge"
 
+def DirectedEdge(Edge, Direction):
+    Edge.type = "Directed"
+    Edge.direction = Direction
+
+def WeakStemEdge(Edge):
+    Edge.type = "WeakEdge"
+
 def FindStem(Leaf):
     for Edge in NetworkEdges:
         A = GetAB(Edge.u,Edge.v,[])
@@ -47,20 +56,53 @@ def FindStem(Leaf):
         print(Ac, Bc)
     
         if Ac and Bc:
-            StrongEdgeStem(Edge)        
-        
+            StrongEdgeStem(Edge)
+        elif Ac and not Bc:
+            DirectedEdge(Edge, Edge.u)
+        elif Bc and not Ac:
+            DirectedEdge(Edge, Edge.v)
+        elif not Ac and not Bc:
+            WeakStemEdge(Edge)
+
+def GetNextEdge(edge):
+    for i in NetworkEdges:
+        if i.u is edge.direction or i.v is edge.direction:
+            if i.direction is not edge.direction:
+                return i
+    return edge.direction
+
+def WeakEdgeConstructor(Edges):
+    pass
+
 def ConstructNetwork(NewLeaf):
+    
+    weakEdges = []
+
     for edge in NetworkEdges:
         if edge.type == "StrongEdge":
             NetworkEdges.remove(edge)
             global InternalNodes
             InternalNodes += 1
-            InternalNode = Node("InternalNode"+str(InternalNodes), [edge.u,edge.v,NewLeaf])
+            InternalNode = Node("InternalNode"+str(InternalNodes), [edge.u,edge.v,NewLeaf],"Internal")
             NetworkLeaves.append(InternalNode)
             NetworkLeaves.append(NewLeaf)
             NetworkEdges.append(Edge(edge.u,InternalNode))
             NetworkEdges.append(Edge(edge.v,InternalNode))
             NetworkEdges.append(Edge(NewLeaf,InternalNode))
+            return
+        if edge.type == "WeakEdge":
+            weakEdges.append(edge)
+
+    if len(weakEdges) is not 0:
+        WeakEdgeConstructor(weakEdges)
+
+    constructing = True
+    edge = NetworkEdges[0]
+    while constructing:
+        edge = GetNextEdge(edge)
+        if type(edge) is not Edge:
+            constructing = False
+
         
 #Reading the file and constructing a set of leaves and a set of the splits of the network
 
@@ -70,8 +112,7 @@ with open( "Test.txt") as f:
 Leaves = []
 TempLeaves = lines[0].split("(")[1].split(")")[0].split(",")
 for i in TempLeaves:
-    Leaves.append(Node(i,[]))
-
+    Leaves.append(Node(i,[],"Leaf"))
 
 Splits = []
 for i in range(1,len(lines)):
@@ -92,12 +133,12 @@ NetworkEdges.append(Edge(Leaves[0],Leaves[1]))
 
 #Step 2: Find stem for next leaf
 
-for i in range(1,3):#len(Leaves)-1):
+for i in range(1,5):#len(Leaves)-1):
     FindStem(Leaves[i+1])
     ConstructNetwork(Leaves[i+1])
     
 for i in NetworkEdges:
-    print(i.name) 
+    print(i.name, i.direction) 
 
 for i in NetworkLeaves:
     print(i.name)
