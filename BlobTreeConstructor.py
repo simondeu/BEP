@@ -20,19 +20,20 @@ class Edge():
         self.type = ""
         self.direction = None
 
-def GetAB(u,v,A):
-    A.append(u)
+def GetAB(u,v,Set_):
+    Set_.append(u)
     for node in u.neighbours:
-        if node not in A and node != v:
-            A = GetAB(node,u,A)
-    return A
+        if node not in Set_ and node is not v:
+            Set_ = GetAB(node,u,Set_)
+    return Set_
 
 def CheckABx(A,B,Leaf):
     for i in A:
         for x1 in B:
             for x2 in B:
-                if x1 != x2:
-                    if ((i,Leaf),(x1,x2)) not in Splits:
+                if x1 != x2 and x1 in Leaves and x2 in Leaves:
+                    if ({i.name,Leaf.name},{x1.name,x2.name}) not in Splits and ({x1.name,x2.name},{i.name,Leaf.name}) not in Splits:
+                        print(({i.name,Leaf.name},{x1.name,x2.name}))
                         return False
     return True
 
@@ -53,7 +54,7 @@ def FindStem(Leaf):
 
         Ac = CheckABx(A,B,Leaf)
         Bc = CheckABx(B,A,Leaf)
-        print(Ac, Bc)
+        print(Ac, Bc, Edge.name)
     
         if Ac and Bc:
             StrongEdgeStem(Edge)
@@ -71,8 +72,49 @@ def GetNextEdge(edge):
                 return i
     return edge.direction
 
-def WeakEdgeConstructor(Edges):
-    pass
+def WeakEdgeConstructor(Edges, newLeaf):
+    TempLeaves = []
+    global InternalNodes
+    for i in Edges:
+        if i.u not in TempLeaves:
+            TempLeaves.append(i.u)
+        if i.v not in TempLeaves:
+            TempLeaves.append(i.v)
+    TempNeighbours = []
+    for i in TempLeaves:
+        for j in i.neighbours:
+            if j not in TempLeaves and j not in TempNeighbours:
+                TempNeighbours.append(j)
+    AdjacentEdges = []
+    for i in NetworkEdges:
+        if i.u in TempLeaves ^ i.v in TempLeaves:
+            AdjacentEdges.append(i)
+    
+    InternalNodes += 1
+    InternalNode = Node("InternalNode" + str(InternalNodes), TempNeighbours)
+    NetworkLeaves.append(InternalNode)
+    for i in TempNeighbours:
+        for j in i.neighbours:
+            if j in TempLeaves:
+                i.neighbours.remove(j)
+        i.neighbours.append(InternalNode)
+    for i in AdjacentEdges:
+        if i.u in TempLeaves:
+            i.u = InternalNode
+        if i.v in TempLeaves:
+            i.v = InternalNode
+    for i in TempLeaves:
+        NetworkLeaves.remove(i)
+    for i in Edges:
+        NetworkEdges.remove(i)
+    
+    StemVertexConstructor(InternalNode, newLeaf)
+
+def StemVertexConstructor(node, newLeaf):
+    node.neighbours.append(newLeaf)
+    NetworkLeaves.append(newLeaf)
+    NetworkEdges.append(Edge(node, newLeaf))
+    newLeaf.neighbours.append(node)
 
 def ConstructNetwork(NewLeaf):
     
@@ -89,12 +131,19 @@ def ConstructNetwork(NewLeaf):
             NetworkEdges.append(Edge(edge.u,InternalNode))
             NetworkEdges.append(Edge(edge.v,InternalNode))
             NetworkEdges.append(Edge(NewLeaf,InternalNode))
+
+            edge.u.neighbours.remove(edge.v)
+            edge.v.neighbours.remove(edge.u)
+            edge.u.neighbours.append(InternalNode)
+            edge.v.neighbours.append(InternalNode)
+            
             return
         if edge.type == "WeakEdge":
             weakEdges.append(edge)
 
-    if len(weakEdges) is not 0:
-        WeakEdgeConstructor(weakEdges)
+    if len(weakEdges) != 0:
+        WeakEdgeConstructor(weakEdges, NewLeaf)
+        return
 
     constructing = True
     edge = NetworkEdges[0]
@@ -102,6 +151,7 @@ def ConstructNetwork(NewLeaf):
         edge = GetNextEdge(edge)
         if type(edge) is not Edge:
             constructing = False
+    StemVertexConstructor(edge, NewLeaf)
 
         
 #Reading the file and constructing a set of leaves and a set of the splits of the network
@@ -117,7 +167,7 @@ for i in TempLeaves:
 Splits = []
 for i in range(1,len(lines)):
     line = lines[i]
-    Splits.append(((line[1],line[3]),(line[5],line[7])))
+    Splits.append(({line[1],line[3]},{line[5],line[7]}))
     
 
 NetworkLeaves = []
@@ -133,17 +183,17 @@ NetworkEdges.append(Edge(Leaves[0],Leaves[1]))
 
 #Step 2: Find stem for next leaf
 
-for i in range(1,5):#len(Leaves)-1):
+for i in range(1,len(Leaves)-1):
     FindStem(Leaves[i+1])
     ConstructNetwork(Leaves[i+1])
     
 for i in NetworkEdges:
-    print(i.name, i.direction) 
+    print(i.name, i.direction, i.type) 
 
 for i in NetworkLeaves:
     print(i.name)
     
-    
+
     
     
     
