@@ -4,6 +4,8 @@ class Node():
         self.name = name
         self.neighbours = neighbours
         self.type = ""
+        self.coordinate = (0,0)
+        self.colour = (0,0,0)
         
     def __str__(self):
         return self.name
@@ -33,7 +35,6 @@ def CheckABx(A,B,Leaf):
             for x2 in B:
                 if x1 != x2 and x1 in Leaves and x2 in Leaves:
                     if ({i.name,Leaf.name},{x1.name,x2.name}) not in Splits and ({x1.name,x2.name},{i.name,Leaf.name}) not in Splits:
-                        print(({i.name,Leaf.name},{x1.name,x2.name}))
                         return False
     return True
 
@@ -54,7 +55,6 @@ def FindStem(Leaf):
 
         Ac = CheckABx(A,B,Leaf)
         Bc = CheckABx(B,A,Leaf)
-        print(Ac, Bc, Edge.name)
     
         if Ac and Bc:
             StrongEdgeStem(Edge)
@@ -87,11 +87,11 @@ def WeakEdgeConstructor(Edges, newLeaf):
                 TempNeighbours.append(j)
     AdjacentEdges = []
     for i in NetworkEdges:
-        if i.u in TempLeaves ^ i.v in TempLeaves:
+        if (i.u in TempLeaves) ^ (i.v in TempLeaves):
             AdjacentEdges.append(i)
     
     InternalNodes += 1
-    InternalNode = Node("InternalNode" + str(InternalNodes), TempNeighbours)
+    InternalNode = Node("InternalNode" + str(InternalNodes), TempNeighbours, "Internal")
     NetworkLeaves.append(InternalNode)
     for i in TempNeighbours:
         for j in i.neighbours:
@@ -154,44 +154,38 @@ def ConstructNetwork(NewLeaf):
     StemVertexConstructor(edge, NewLeaf)
 
         
-#Reading the file and constructing a set of leaves and a set of the splits of the network
-
-with open( "Test.txt") as f:
-    lines = f.readlines()
-
-Leaves = []
-TempLeaves = lines[0].split("(")[1].split(")")[0].split(",")
-for i in TempLeaves:
-    Leaves.append(Node(i,[],"Leaf"))
-
-Splits = []
-for i in range(1,len(lines)):
-    line = lines[i]
-    Splits.append(({line[1],line[3]},{line[5],line[7]}))
-    
 
 NetworkLeaves = []
 NetworkEdges = []
+Leaves = []
+Splits = []
 InternalNodes = 0
 
-#Step 1: Creating the first edge of the network
-Leaves[0].neighbours.append(Leaves[1]), NetworkLeaves.append(Leaves[0])
-Leaves[1].neighbours.append(Leaves[0]), NetworkLeaves.append(Leaves[1])
-NetworkEdges.append(Edge(Leaves[0],Leaves[1]))
+def ConstructTree(file_):
+    #Reading the file and constructing a set of leaves and a set of the splits of the network
+    with open(file_) as f:
+        lines = f.readlines()
 
-#Leaves[2].neighbours.append(Leaves[0]), Leaves[0].neighbours.append(Leaves[2])
+    TempLeaves = lines[0].split("(")[1].split(")")[0].split(",")
+    for i in TempLeaves:
+        Leaves.append(Node(i,[],"Leaf"))
 
-#Step 2: Find stem for next leaf
+    for i in range(1,len(lines)):
+        line = lines[i]
+        Splits.append(({line[1],line[3]},{line[5],line[7]}))
+        
+    #Step 1: Creating the first edge of the network
+    Leaves[0].neighbours.append(Leaves[1]), NetworkLeaves.append(Leaves[0])
+    Leaves[1].neighbours.append(Leaves[0]), NetworkLeaves.append(Leaves[1])
+    NetworkEdges.append(Edge(Leaves[0],Leaves[1]))
 
-for i in range(1,len(Leaves)-1):
-    FindStem(Leaves[i+1])
-    ConstructNetwork(Leaves[i+1])
-    
-for i in NetworkEdges:
-    print(i.name, i.direction, i.type) 
+    #Step 2: Find stem for next leaf
+    length = len(Leaves) - 1
+    for i in range(1,length):
+        FindStem(Leaves[i+1])
+        ConstructNetwork(Leaves[i+1])
 
-for i in NetworkLeaves:
-    print(i.name)
+    return NetworkLeaves, NetworkEdges
     
 
     
