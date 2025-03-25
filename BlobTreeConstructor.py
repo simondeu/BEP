@@ -31,11 +31,12 @@ def GetAB(u,v,Set_):
 
 def CheckABx(A,B,Leaf):
     for i in A:
-        for x1 in B:
-            for x2 in B:
-                if x1 != x2 and x1 in Leaves and x2 in Leaves:
-                    if ({i.name,Leaf.name},{x1.name,x2.name}) not in Splits and ({x1.name,x2.name},{i.name,Leaf.name}) not in Splits:
-                        return False
+        if i in Leaves:
+            for x1 in B:
+                for x2 in B:
+                    if x1 != x2 and x1 in Leaves and x2 in Leaves:
+                        if ({i.name,Leaf.name},{x1.name,x2.name}) not in Splits and ({x1.name,x2.name},{i.name,Leaf.name}) not in Splits:
+                            return False
     return True
 
 def StrongEdgeStem(Edge):
@@ -117,11 +118,11 @@ def StemVertexConstructor(node, newLeaf):
     newLeaf.neighbours.append(node)
 
 def ConstructNetwork(NewLeaf):
-    
     weakEdges = []
 
     for edge in NetworkEdges:
         if edge.type == "StrongEdge":
+            print("Strong", NewLeaf.name, edge.name)
             NetworkEdges.remove(edge)
             global InternalNodes
             InternalNodes += 1
@@ -136,9 +137,11 @@ def ConstructNetwork(NewLeaf):
             edge.v.neighbours.remove(edge.u)
             edge.u.neighbours.append(InternalNode)
             edge.v.neighbours.append(InternalNode)
+            NewLeaf.neighbours.append(InternalNode)
             
             return
         if edge.type == "WeakEdge":
+            print('weak', NewLeaf.name, edge.name)
             weakEdges.append(edge)
 
     if len(weakEdges) != 0:
