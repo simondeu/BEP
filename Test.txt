@@ -1,4 +1,4 @@
-(e,f,b,c,a,d)
+(e,f,b,c,d,a)
 (a,b|e,f)
 (a,c|e,f)
 (a,d|e,f)
