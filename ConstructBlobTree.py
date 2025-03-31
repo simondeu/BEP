@@ -8,6 +8,8 @@ def Main(file_):                        #Main file from where the rest of the co
     for Leaf in G.graph['Leaves'][3::]:         #Loop for adding leaves individually
         CheckEdges(Leaf)                        #Checks for edge types
         AddNextLeaf(Leaf)                       #Adds next leaf according to edge types
+    GenerateMixGraph()
+    RemoveEdges()
 
 def ReadData(file_):                    #Function for reading and storing data, data has to be in the format of sample text file
     Leaves = []
@@ -42,7 +44,7 @@ def AddNextLeaf(Leaf):                  #Function for adding the next leaf
         if G[u][v]['type'] == "Weak":           #If edge is weak, store it in the weak edges collection
             WeakEdges.append(edge)
     if len(WeakEdges) != 0:                     #If the weak edges collection is not empty, call the function for adding next leaf to the weak edges
-        ConstructWeak(WeakEdges, Leaf)
+        ConstructWeakBlob(WeakEdges, Leaf)
         return
     
     edge = list(G.edges)[0]                     #Starting edge from where we start looking for stem vertex
@@ -127,12 +129,44 @@ def ConstructWeak(WeakEdges, Leaf):     #Function for constructing the tree with
         G.add_edge(node,NewInternalNode)
     G.add_edge(Leaf,NewInternalNode)                                                #Attaching the new leaf
 
+def ConstructWeakBlob(WeakEdges, Leaf):
+    Ends = []
+    for edge in WeakEdges:
+        if edge[0] not in Ends:
+            Ends.append(edge[0])
+        else:
+            Ends.remove(edge[0])
+        if edge[1] not in Ends:
+            Ends.append(edge[1])
+        else:
+            Ends.remove(edge[1])
+    G.graph["InternalNodes"] += 1
+    NewInternalNode = "Internal" + str(G.graph["InternalNodes"])
+    G.add_edges_from([(Ends[0], NewInternalNode, {'reticulation' : (True, NewInternalNode)}),(Ends[1], NewInternalNode, {'reticulation' : (True, NewInternalNode)})]), G.add_edge(NewInternalNode, Leaf)    
+
+def GenerateMixGraph():
+    print(G.edges)
+    for u,v,data in G.edges(data=True):
+        print(u,v)
+        G_mixed.add_edge(u,v,key=0,**data)
+        G_mixed.add_edge(v,u,key=0,**data)
+
+def RemoveEdges():
+    EdgesToRemove= []
+    for u,v in G_mixed.edges():
+        reticulation = G_mixed[u][v][0].get('reticulation',0)
+        if reticulation != 0:
+            if reticulation[0] == True and reticulation[1] == u:
+                EdgesToRemove.append([u,v])
+    G_mixed.remove_edges_from(EdgesToRemove)
+
 
 G = nx.Graph()                          #Making a graph object
-
+G_mixed = nx.MultiDiGraph()
 Main("Test.txt")                        #Calling the main function
 
-
-G_mixed = nx.MultiDiGraph(G)
-nx.draw(G_mixed, with_labels=True, node_color='lightblue', edge_color='black', node_size=2000, font_size=15)
+pos = nx.spring_layout(G_mixed)
+nx.draw(G_mixed, pos, with_labels=False, node_color='lightblue', edge_color='black', node_size=2000, font_size=15)
+labels = {node: str(node) for node in G_mixed.nodes if "Internal" not in node}
+nx.draw_networkx_labels(G_mixed, pos,  font_size=12)
 plt.show()
