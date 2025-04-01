@@ -1,0 +1,80 @@
+{
+    "directed": true,
+    "multigraph": true,
+    "graph": {},
+    "nodes": [
+        {
+            "id": "a"
+        },
+        {
+            "id": "Internal1"
+        },
+        {
+            "id": "b"
+        },
+        {
+            "id": "c"
+        },
+        {
+            "id": "d"
+        }
+    ],
+    "links": [
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "a",
+            "target": "Internal1",
+            "key": 0
+        },
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "Internal1",
+            "target": "a",
+            "key": 0
+        },
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "Internal1",
+            "target": "b",
+            "key": 0
+        },
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "Internal1",
+            "target": "c",
+            "key": 0
+        },
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "Internal1",
+            "target": "d",
+            "key": 0
+        },
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "b",
+            "target": "Internal1",
+            "key": 0
+        },
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "c",
+            "target": "Internal1",
+            "key": 0
+        },
+        {
+            "type": "Directed",
+            "direction": "Internal1",
+            "source": "d",
+            "target": "Internal1",
+            "key": 0
+        }
+    ]
+}

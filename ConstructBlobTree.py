@@ -1,8 +1,9 @@
 import networkx as nx                   #Networkx library for easy networks             https://networkx.org/
 import matplotlib.pyplot as plt         #MatPlotLib library for plotting in python      https://matplotlib.org/
+import itertools
+import json                             #JSON for storing the graph as a JSON file
 
-
-def Main(file_):                        #Main file from where the rest of the construction is controlled
+def Main(file_, DrawGraph_ = True, StoreGraph_ = True, GraphFile = "graph"):                        #Main file from where the rest of the construction is controlled
     ReadData(file_)                             #Reading the data
     TreeStart()                                 #Start for the blobtree
     for Leaf in G.graph['Leaves'][3::]:         #Loop for adding leaves individually
@@ -10,6 +11,8 @@ def Main(file_):                        #Main file from where the rest of the co
         AddNextLeaf(Leaf)                       #Adds next leaf according to edge types
     GenerateMixGraph()
     RemoveEdges()
+    if DrawGraph_: DrawGraph() 
+    if StoreGraph_: StoreGraph(GraphFile)
 
 def ReadData(file_):                    #Function for reading and storing data, data has to be in the format of sample text file
     Leaves = []
@@ -53,7 +56,8 @@ def AddNextLeaf(Leaf):                  #Function for adding the next leaf
         edge = NextEdge(edge)
         if edge[0] == "Done":                   #If stem vertex is found...
             constructing = False
-    G.add_edge(Leaf, edge[1])                   #Attach leaf to stem vertex
+    ConstructStemVertex(edge[1], Leaf)
+    #G.add_edge(Leaf, edge[1])                   #Attach leaf to stem vertex
 
 def NextEdge(edge):                     #Function for getting the next edge for finding the stem vertex
     u,v=edge[0],edge[1]
@@ -129,8 +133,9 @@ def ConstructWeak(WeakEdges, Leaf):     #Function for constructing the tree with
         G.add_edge(node,NewInternalNode)
     G.add_edge(Leaf,NewInternalNode)                                                #Attaching the new leaf
 
-def ConstructWeakBlob(WeakEdges, Leaf):
+def ConstructWeakBlob(WeakEdges, Leaf): #Function for attaching a reticulation vertex to the ends of a weak path, and attaching the next leaf to it
     Ends = []
+    TempNodes = []
     for edge in WeakEdges:
         if edge[0] not in Ends:
             Ends.append(edge[0])
@@ -140,18 +145,78 @@ def ConstructWeakBlob(WeakEdges, Leaf):
             Ends.append(edge[1])
         else:
             Ends.remove(edge[1])
+
+        if edge[0] not in TempNodes:
+            TempNodes.append(edge[0])
+        if edge[1] not in TempNodes:
+            TempNodes.append(edge[1])
+
+            
     G.graph["InternalNodes"] += 1
     NewInternalNode = "Internal" + str(G.graph["InternalNodes"])
-    G.add_edges_from([(Ends[0], NewInternalNode, {'reticulation' : (True, NewInternalNode)}),(Ends[1], NewInternalNode, {'reticulation' : (True, NewInternalNode)})]), G.add_edge(NewInternalNode, Leaf)    
+    if len(Ends) != 0:
+        G.add_edges_from([(Ends[0], NewInternalNode, {'reticulation' : (True, NewInternalNode)}),(Ends[1], NewInternalNode, {'reticulation' : (True, NewInternalNode)})]), G.add_edge(NewInternalNode, Leaf)
+        return
 
-def GenerateMixGraph():
-    print(G.edges)
+
+def ConstructStemVertex(node, Leaf):
+    if len(G.adj[node]) <= 3:
+        G.add_edge(node, Leaf)
+        return
+    
+    Splits = G.graph['Splits']
+    Neighbours = list(G.adj[node])
+    RealNeighbours = []
+    RealNeighbours+=Neighbours + [Leaf]
+
+    for i, n in enumerate(Neighbours):
+        if "Internal" in n:
+            y = GetRandomLeafFromInternalNode(n, node, [])
+            Neighbours[i] = y
+
+    NeighboursX = Neighbours + [Leaf]
+    Neighbours += [Leaf]
+    for split in Splits:
+        inBlob = True
+        for x in split:
+            for y in x:
+                if y not in NeighboursX:
+                    inBlob = False
+        if inBlob:
+            BlobSplit = split
+            for x in split:
+                for y in x:
+                    if y in NeighboursX:
+                        NeighboursX.remove(y)
+    G.remove_node(node)
+    G.graph["InternalNodes"] += 3
+    tempSplit = []
+    for x in BlobSplit:
+        tmp = []
+        for y in x:
+            tmp.append(RealNeighbours[Neighbours.index(y)])
+        tempSplit.append(tmp)
+    NIN1 = "Internal" + str(G.graph["InternalNodes"]-2) 
+    NIN2 = "Internal" + str(G.graph["InternalNodes"]-1) 
+    NIN3 = "Internal" + str(G.graph["InternalNodes"])
+    G.add_edges_from([(tempSplit[0][0], NIN1), (tempSplit[0][1], NIN1), (tempSplit[1][0], NIN2), (tempSplit[1][1], NIN2), (NIN1, NIN2)])
+    G.add_edges_from([(NIN1, NIN3, {'reticulation' : (True, NIN3)}), (NIN2, NIN3, {'reticulation' : (True, NIN3)})])
+    G.add_edge(NIN3, NeighboursX[0])
+
+def GetRandomLeafFromInternalNode(node, blob, A = []):
+    if "Internal" not in node:
+        return node
+    A.append(blob)
+    for x in list(G.adj[node]):
+        if x is not blob and x not in A:
+            return GetRandomLeafFromInternalNode(x, node, A)
+
+def GenerateMixGraph():                 #Function for converting the graph to a semi-directed graph
     for u,v,data in G.edges(data=True):
-        print(u,v)
         G_mixed.add_edge(u,v,key=0,**data)
         G_mixed.add_edge(v,u,key=0,**data)
 
-def RemoveEdges():
+def RemoveEdges():                      #Function for removing directed edges that should not be in the graph after the conversion
     EdgesToRemove= []
     for u,v in G_mixed.edges():
         reticulation = G_mixed[u][v][0].get('reticulation',0)
@@ -160,13 +225,17 @@ def RemoveEdges():
                 EdgesToRemove.append([u,v])
     G_mixed.remove_edges_from(EdgesToRemove)
 
+def DrawGraph():                        #Function that plots the graph
+    pos = nx.spring_layout(G_mixed)
+    nx.draw(G_mixed, pos, with_labels=False, node_color='lightblue', edge_color='black', node_size=2000, font_size=15)
+    labels = {node: str(node) for node in G_mixed.nodes if "Internal" not in node}
+    nx.draw_networkx_labels(G_mixed, pos, labels, font_size=12)
+    plt.show()
 
-G = nx.Graph()                          #Making a graph object
-G_mixed = nx.MultiDiGraph()
-Main("Test.txt")                        #Calling the main function
+def StoreGraph(GraphFile):              #Function that stores the graph to 'GraphFile.json'
+    with open(GraphFile + '.json', 'w') as f:
+        json.dump(nx.node_link_data(G_mixed), f, indent=4)
 
-pos = nx.spring_layout(G_mixed)
-nx.draw(G_mixed, pos, with_labels=False, node_color='lightblue', edge_color='black', node_size=2000, font_size=15)
-labels = {node: str(node) for node in G_mixed.nodes if "Internal" not in node}
-nx.draw_networkx_labels(G_mixed, pos,  font_size=12)
-plt.show()
+G = nx.Graph()                                                                  #Making a graph object
+G_mixed = nx.MultiDiGraph()                                                     #The semi-directed graph we will later convert our graph to
+Main("Test.txt", DrawGraph_=True, StoreGraph_=False, GraphFile='graph')         #Calling the main function
