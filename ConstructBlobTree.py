@@ -3,12 +3,13 @@ import matplotlib.pyplot as plt         #MatPlotLib library for plotting in pyth
 import itertools
 import json                             #JSON for storing the graph as a JSON file
 
-def Main(file_, DrawGraph_ = True, StoreGraph_ = True, GraphFile = "graph"):                        #Main file from where the rest of the construction is controlled
+def Main(file_, OnlyTree = False, DrawGraph_ = True, StoreGraph_ = True, GraphFile = "graph"):    #Main file from where the rest of the construction is controlled
     ReadData(file_)                             #Reading the data
     TreeStart()                                 #Start for the blobtree
     for Leaf in G.graph['Leaves'][3::]:         #Loop for adding leaves individually
         CheckEdges(Leaf)                        #Checks for edge types
         AddNextLeaf(Leaf)                       #Adds next leaf according to edge types
+    if OnlyTree is False: GenerateLevel1()
     GenerateMixGraph()
     RemoveEdges()
     if DrawGraph_: DrawGraph() 
@@ -37,62 +38,76 @@ def TreeStart():                        #Function for making the base of the tre
     G.add_edges_from(StartEdges)
     G.graph["InternalNodes"] = 1
 
-def AddNextLeaf(Leaf):                  #Function for adding the next leaf
+def GenerateLevel1():
+    tmp = []
+    for node in G.nodes():
+        if "Internal" in node:
+            tmp.append(node)
+    for node in tmp:
+        ConstructBlob1(node)
+
+def AddNextLeaf(Leaf, Graph = None):                  #Function for adding the next leaf
+    if Graph == None:
+        Graph = G
     WeakEdges = []
-    for edge in G.edges:                        #Iterating over the edges
+    for edge in Graph.edges:                        #Iterating over the edges
         u,v = edge[0],edge[1]                   
-        if G[u][v]['type'] == "Strong":         #If edge is strong, attach new leaf to edge and repeat process with next leaf
-            ConstructStrong(edge,Leaf)          
+        if Graph[u][v]['type'] == "Strong":         #If edge is strong, attach new leaf to edge and repeat process with next leaf
+            ConstructStrong(edge,Leaf,Graph)          
             return
-        if G[u][v]['type'] == "Weak":           #If edge is weak, store it in the weak edges collection
+        if Graph[u][v]['type'] == "Weak":           #If edge is weak, store it in the weak edges collection
             WeakEdges.append(edge)
     if len(WeakEdges) != 0:                     #If the weak edges collection is not empty, call the function for adding next leaf to the weak edges
-        ConstructWeakBlob(WeakEdges, Leaf)
+        ConstructWeak(WeakEdges, Leaf)
         return
     
-    edge = list(G.edges)[0]                     #Starting edge from where we start looking for stem vertex
+    edge = list(Graph.edges)[0]                     #Starting edge from where we start looking for stem vertex
     constructing = True
     while constructing:                         #Loop for iterating over edges following edge directions
-        edge = NextEdge(edge)
+        edge = NextEdge(edge, Graph)
         if edge[0] == "Done":                   #If stem vertex is found...
             constructing = False
-    ConstructStemVertex(edge[1], Leaf)
+    ConstructStemVertex(edge[1], Leaf, Graph)
     #G.add_edge(Leaf, edge[1])                   #Attach leaf to stem vertex
 
-def NextEdge(edge):                     #Function for getting the next edge for finding the stem vertex
+def NextEdge(edge, Graph):                     #Function for getting the next edge for finding the stem vertex
     u,v=edge[0],edge[1]
-    direction = G[u][v]['direction']
-    for neighbour in G.adj[direction]:
-        if G[direction][neighbour]['direction'] is not direction:
+    direction = Graph[u][v]['direction']
+    for neighbour in Graph.adj[direction]:
+        if Graph[direction][neighbour]['direction'] is not direction:
             return (neighbour,direction)
     return ("Done",direction)
 
-def CheckEdges(Leaf):                   #Function for getting the type for each edge (Strong, Weak, Directed)
-    Splits = G.graph['Splits']
-    for edge in G.edges:
-        A,B = GetAB(edge[0],edge[1],[]), GetAB(edge[1],edge[0],[])
-        Ax,Bx = CheckABx(A,B,Leaf), CheckABx(B,A,Leaf)
-        
+def CheckEdges(Leaf, Graph = None):                   #Function for getting the type for each edge (Strong, Weak, Directed)
+    if Graph == None:
+        Graph = G
+    for edge in Graph.edges:
+        A,B = GetAB(edge[0],edge[1],[], Graph), GetAB(edge[1],edge[0],[], Graph)
+        Ax,Bx = CheckABx(A,B,Leaf, Graph), CheckABx(B,A,Leaf, Graph)
         if Ax and Bx:
-            G[edge[0]][edge[1]]['type'] = "Strong"
+            Graph[edge[0]][edge[1]]['type'] = "Strong"
         if Ax and not Bx:
-            G[edge[0]][edge[1]]['type'] = "Directed"
-            G[edge[0]][edge[1]]['direction'] = edge[0]
+            Graph[edge[0]][edge[1]]['type'] = "Directed"
+            Graph[edge[0]][edge[1]]['direction'] = edge[0]
         if Bx and not Ax:
-            G[edge[0]][edge[1]]['type'] = "Directed"
-            G[edge[0]][edge[1]]['direction'] = edge[1]
+            Graph[edge[0]][edge[1]]['type'] = "Directed"
+            Graph[edge[0]][edge[1]]['direction'] = edge[1]
         if not Ax and not Bx:
-            G[edge[0]][edge[1]]['type'] = "Weak"
+            Graph[edge[0]][edge[1]]['type'] = "Weak"
 
-def GetAB(u,v,A=[]):                    #Function for obtaining the sets after a split in the graph
+def GetAB(u,v,A=[], Graph = None):                    #Function for obtaining the sets after a split in the graph
+    if Graph == None:
+        Graph = G
     A.append(u)
-    for node in G.adj[u]:
+    for node in Graph.adj[u]:
         if node not in A and node is not v:
-            A = GetAB(node,u,A)
+            A = GetAB(node,u,A, Graph)
     return A
 
-def CheckABx(A,B,x):                    #Function for checking if A U {x} is a split with B
-    Splits = G.graph['Splits']
+def CheckABx(A,B,x,Graph = None):                    #Function for checking if A U {x} is a split with B
+    if Graph == None:
+        Graph = G
+    Splits = Graph.graph['Splits']
     for a in A:
         if "Internal" not in a:
             for b1 in B:
@@ -102,12 +117,14 @@ def CheckABx(A,B,x):                    #Function for checking if A U {x} is a s
                             return False
     return True
 
-def ConstructStrong(edge, Leaf):        #Function for constructing tree if a strong edge is found, thus attaching the next leaf to the edge
+def ConstructStrong(edge, Leaf, Graph = None):        #Function for constructing tree if a strong edge is found, thus attaching the next leaf to the edge
+    if Graph == None:
+        Graph = G
     u,v = edge[0],edge[1]
-    G.graph["InternalNodes"] += 1
-    NewInternalNode = "Internal"+str(G.graph["InternalNodes"])
-    G.remove_edge(u,v)
-    G.add_edge(u,NewInternalNode), G.add_edge(v,NewInternalNode), G.add_edge(Leaf,NewInternalNode)
+    Graph.graph["InternalNodes"] += 1
+    NewInternalNode = "Internal"+str(Graph.graph["InternalNodes"])
+    Graph.remove_edge(u,v)
+    Graph.add_edge(u,NewInternalNode), Graph.add_edge(v,NewInternalNode), Graph.add_edge(Leaf,NewInternalNode)
 
 def ConstructWeak(WeakEdges, Leaf):     #Function for constructing the tree with a set of weak edges, merging them to one single vertex and attaching the next leaf to that
 
@@ -158,14 +175,15 @@ def ConstructWeakBlob(WeakEdges, Leaf): #Function for attaching a reticulation v
         G.add_edges_from([(Ends[0], NewInternalNode, {'reticulation' : (True, NewInternalNode)}),(Ends[1], NewInternalNode, {'reticulation' : (True, NewInternalNode)})]), G.add_edge(NewInternalNode, Leaf)
         return
 
-
-def ConstructStemVertex(node, Leaf):
-    if len(G.adj[node]) <= 3:
-        G.add_edge(node, Leaf)
+def ConstructStemVertex(node, Leaf, Graph = None):
+    if Graph == None:
+        Graph = G
+    if len(Graph.adj[node]) > 0:
+        Graph.add_edge(node, Leaf)
         return
     
-    Splits = G.graph['Splits']
-    Neighbours = list(G.adj[node])
+    Splits = Graph.graph['Splits']
+    Neighbours = list(Graph.adj[node])
     RealNeighbours = []
     RealNeighbours+=Neighbours + [Leaf]
 
@@ -211,6 +229,79 @@ def GetRandomLeafFromInternalNode(node, blob, A = []):
         if x is not blob and x not in A:
             return GetRandomLeafFromInternalNode(x, node, A)
 
+def ConstructBlob1(InternalNode):
+    Leaves = []
+    LeavesWithInternal = []
+    TempSplits = []
+    Realreticulation = None
+    for node in G.adj[InternalNode]:
+        if "Internal" in node:
+            Leaves.append(GetRandomLeafFromInternalNode(node, InternalNode, A = []))
+            LeavesWithInternal.append(node)
+        else:
+            Leaves.append(node)
+            LeavesWithInternal.append(node)
+    for split in G.graph["Splits"]:
+        IN = True
+        for x in split:
+            for y in x:
+                if y not in Leaves:
+                    IN = False
+        if IN:
+            TempSplits.append(split)
+    for leaf in Leaves:
+        for split in TempSplits:
+            if leaf not in split[0] and leaf not in split[1]:
+                print(leaf)
+                reticulation, Realreticulation = leaf, LeavesWithInternal[Leaves.index(leaf)]
+                LeavesWithInternal.remove(LeavesWithInternal[Leaves.index(leaf)])
+                Leaves.remove(leaf)
+
+    GTemp = nx.Graph()
+    GTemp.graph["Splits"] = TempSplits
+    GTemp.graph["InternalNodes"] = 0 + G.graph["InternalNodes"]
+    CreatePath(Leaves, GTemp)
+    G.graph["InternalNodes"] = 0 + GTemp.graph["InternalNodes"]
+    print(InternalNode)
+    G.remove_node(InternalNode)
+    GlueGraph(GTemp, Leaves, LeavesWithInternal)
+    Ends = FindEndsOfPath(GTemp)
+    if Realreticulation is not None:
+        G.add_edges_from([(Realreticulation, Ends[0], {'reticulation' : (True, Realreticulation)}),(Realreticulation, Ends[1], {'reticulation' : (True, Realreticulation)})])
+
+def CreatePath(Nodes, Graph):
+    #Initial Tree
+    Graph.graph["InternalNodes"] += 1
+    NewInternalNode = "Internal"+str(Graph.graph["InternalNodes"])
+    Graph.add_edge(Nodes[0], NewInternalNode), Graph.add_edge(Nodes[1], NewInternalNode), Graph.add_edge(Nodes[2], NewInternalNode)
+    for i in range(3, len(Nodes)):
+        CheckEdges(Nodes[i], Graph)
+        AddNextLeaf(Nodes[i], Graph)
+
+def GlueGraph(Graph, Leaves, LeavesWithInternal):
+    for edge in Graph.edges():
+        if "Internal" in edge[0]:
+            if "Internal" in edge[1]:
+                G.add_edge(edge[0],edge[1])
+            else:
+                node = LeavesWithInternal[Leaves.index(edge[1])]
+                G.add_edge(edge[0],node)
+        else:
+            node = LeavesWithInternal[Leaves.index(edge[0])]
+            G.add_edge(edge[1],node)
+
+def FindEndsOfPath(Graph):
+    Ends = []
+    for node in Graph.nodes():
+        if "Internal" in node:
+            i = 0
+            for n in Graph.neighbors(node):
+                if "Internal" in n:
+                    i += 1
+            if i <= 1:
+                Ends.append(node)
+    return Ends
+
 def GenerateMixGraph():                 #Function for converting the graph to a semi-directed graph
     for u,v,data in G.edges(data=True):
         G_mixed.add_edge(u,v,key=0,**data)
@@ -238,4 +329,4 @@ def StoreGraph(GraphFile):              #Function that stores the graph to 'Grap
 
 G = nx.Graph()                                                                  #Making a graph object
 G_mixed = nx.MultiDiGraph()                                                     #The semi-directed graph we will later convert our graph to
-Main("Test.txt", DrawGraph_=True, StoreGraph_=False, GraphFile='graph')         #Calling the main function
+Main("Test.txt", OnlyTree = False, DrawGraph_=True, StoreGraph_=True, GraphFile='graph')         #Calling the main function
